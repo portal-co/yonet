@@ -1,0 +1,10 @@
+[package]
+name = "portal-solutions-yo-gurt"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+description.workspace = true
+veraion.workspace = true
+
+[dependencies]
+embedded-io-async = "0.6.1"
