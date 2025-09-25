@@ -1,0 +1,10 @@
+[workspace]
+members=[]
+resolver="3"
+
+[workspace.package]
+license = "MPL-2.0"
+description = "Obscure network protocol implementation"
+veraion = "0.0.0"
+
+[workspace.dependencies]

@@ -1,0 +1,11 @@
+{
+  "name": "@portal-solutions/yo",
+  "workspaces": [],
+  "description": "Obscure network protocol implementation",
+  "license": "MPL-2.0",
+  "devDependencies": {
+    "parcel": "^2.16.0",
+    "typescript": "^5.9.2",
+    "zshy": "^0.4.2"
+  }
+}
