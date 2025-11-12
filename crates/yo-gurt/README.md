@@ -42,8 +42,8 @@ client.handshake("example.com", "yo-gurt/0.1").await?;
 // Read handshake response
 let mut response = client.response_reader();
 let mut buf = [0u8; 512];
-let (status, _) = response.read_status_line(&mut buf).await?;
-assert_eq!(status, StatusCode::SwitchingProtocols);
+let status_result = response.read_status_line(&mut buf).await?;
+assert_eq!(status_result.status, StatusCode::SwitchingProtocols);
 
 // Skip headers
 while response.read_header(&mut buf).await?.is_some() {}
@@ -53,7 +53,7 @@ client.request_no_body(Method::Get, "/api/data", "example.com", None).await?;
 
 // Read response
 let mut response = client.response_reader();
-let (status, _) = response.read_status_line(&mut buf).await?;
+let status_result = response.read_status_line(&mut buf).await?;
 ```
 
 ## Protocol Requirements

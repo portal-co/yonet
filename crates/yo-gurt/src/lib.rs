@@ -36,8 +36,8 @@
 //! // Read handshake response
 //! let mut response = client.response_reader();
 //! let mut buf = [0u8; 512];
-//! let (status, _) = response.read_status_line(&mut buf).await?;
-//! assert_eq!(status, StatusCode::SwitchingProtocols);
+//! let status_result = response.read_status_line(&mut buf).await?;
+//! assert_eq!(status_result.status, StatusCode::SwitchingProtocols);
 //!
 //! // Skip headers until end
 //! while response.read_header(&mut buf).await?.is_some() {}
@@ -47,12 +47,12 @@
 //!
 //! // Read response status
 //! let mut response = client.response_reader();
-//! let (status, _) = response.read_status_line(&mut buf).await?;
+//! let status_result = response.read_status_line(&mut buf).await?;
 //! ```
 
 #![no_std]
 
-use embedded_io_async::{Read, ReadExactError, Write};
+use embedded_io_async::{ErrorType, Read, ReadExactError, Write};
 
 /// GURT Protocol version constant
 /// From spec: "GURT (version 1.0.0)"
@@ -258,10 +258,14 @@ impl StatusCode {
 /// Trait for writing GURT headers
 ///
 /// From spec: "Headers: Lowercase names, colon-separated values"
-pub trait HeaderWriter {
+pub trait HeaderWriter: ErrorType {
     /// Write a header with the given name and value
     /// Headers should be lowercase as per spec
-    fn write_header(&mut self, name: &str, value: &str) -> impl core::future::Future<Output = ()>;
+    fn write_header(
+        &mut self,
+        name: &str,
+        value: &str,
+    ) -> impl core::future::Future<Output = Result<(), Self::Error>>;
 }
 
 /// GURT Client for making requests
@@ -316,6 +320,8 @@ impl<T: Read + Write> GurtClient<T> {
 
     /// Send a request without a body
     ///
+    /// Note: Custom headers cannot be passed yet. Only `host` and `user-agent` headers are written.
+    ///
     /// From spec: "Request Structure:
     /// ```text
     /// METHOD /path GURT/1.0.0\r\n
@@ -358,6 +364,9 @@ impl<T: Read + Write> GurtClient<T> {
     }
 
     /// Start a request with a body
+    ///
+    /// Note: Custom headers cannot be passed yet. Only `host`, `content-type`, `content-length`,
+    /// and `user-agent` headers are written.
     ///
     /// This writes the request line and headers, allowing the caller to write the body
     /// Returns a RequestBodyWriter that can be used to write the body and finalize the request
@@ -447,6 +456,32 @@ impl<'a, T: Write> RequestBodyWriter<'a, T> {
     }
 }
 
+/// Result from reading a status line
+///
+/// Contains the parsed status code and the total number of bytes read
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StatusLineResult {
+    /// The parsed status code
+    pub status: StatusCode,
+    /// Total bytes read including the status line and CRLF
+    pub bytes_read: usize,
+}
+
+/// Result from reading a header line
+///
+/// Contains the positions and lengths of the header name and value in the buffer
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeaderResult {
+    /// Length of the header name in bytes
+    pub name_len: usize,
+    /// Starting position of the header value in the buffer
+    pub value_start: usize,
+    /// Length of the header value in bytes
+    pub value_len: usize,
+    /// Total bytes read including the header line and CRLF
+    pub total_bytes: usize,
+}
+
 /// Response reader for parsing GURT responses
 ///
 /// From spec: "Response Structure:
@@ -472,11 +507,11 @@ impl<'a, T: Read> ResponseReader<'a, T> {
     /// Read response status line
     /// From spec: "Status line: `GURT/1.0.0 <code> <message>`"
     ///
-    /// Returns (status_code, buffer_with_line_data, bytes_read)
+    /// Returns a StatusLineResult containing the parsed status code and bytes read
     pub async fn read_status_line(
         &mut self,
         buf: &mut [u8],
-    ) -> Result<(StatusCode, usize), ResponseError<T::Error>> {
+    ) -> Result<StatusLineResult, ResponseError<T::Error>> {
         let mut pos = 0;
 
         // Read until we find \r\n
@@ -511,7 +546,10 @@ impl<'a, T: Read> ResponseReader<'a, T> {
                 let status_code =
                     StatusCode::from_u16(code).ok_or(ResponseError::InvalidStatusLine)?;
 
-                return Ok((status_code, pos + 1));
+                return Ok(StatusLineResult {
+                    status: status_code,
+                    bytes_read: pos + 1,
+                });
             }
 
             pos += 1;
@@ -521,11 +559,11 @@ impl<'a, T: Read> ResponseReader<'a, T> {
     /// Read a single header line
     /// From spec: "header-name: header-value\r\n"
     ///
-    /// Returns (name_len, value_start, value_len, total_bytes) or None if end of headers
+    /// Returns Some(HeaderResult) with header information, or None if end of headers
     pub async fn read_header(
         &mut self,
         buf: &mut [u8],
-    ) -> Result<Option<(usize, usize, usize, usize)>, ResponseError<T::Error>> {
+    ) -> Result<Option<HeaderResult>, ResponseError<T::Error>> {
         let mut pos = 0;
 
         // Read until we find \r\n
@@ -563,7 +601,12 @@ impl<'a, T: Read> ResponseReader<'a, T> {
                     };
                     let value_len = line.len() - value_start;
 
-                    return Ok(Some((name_len, value_start, value_len, pos + 1)));
+                    return Ok(Some(HeaderResult {
+                        name_len,
+                        value_start,
+                        value_len,
+                        total_bytes: pos + 1,
+                    }));
                 } else {
                     return Err(ResponseError::InvalidHeader);
                 }
