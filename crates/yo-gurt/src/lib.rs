@@ -21,6 +21,34 @@
 //! - Status codes compatible with HTTP semantics
 //! - Default port: 4878
 //! - ALPN identifier: `GURT/1.0`
+//!
+//! ## Usage Example
+//!
+//! ```rust,ignore
+//! use portal_solutions_yo_gurt::{GurtClient, Method, StatusCode};
+//!
+//! // Create a GURT client with your TLS transport
+//! let mut client = GurtClient::new(transport);
+//!
+//! // Perform handshake (required by spec)
+//! client.handshake("example.com", "yo-gurt/0.1").await?;
+//!
+//! // Read handshake response
+//! let mut response = client.response_reader();
+//! let mut buf = [0u8; 512];
+//! let (status, _) = response.read_status_line(&mut buf).await?;
+//! assert_eq!(status, StatusCode::SwitchingProtocols);
+//!
+//! // Skip headers until end
+//! while response.read_header(&mut buf).await?.is_some() {}
+//!
+//! // Make a GET request
+//! client.request_no_body(Method::Get, "/api/data", "example.com", None).await?;
+//!
+//! // Read response status
+//! let mut response = client.response_reader();
+//! let (status, _) = response.read_status_line(&mut buf).await?;
+//! ```
 
 #![no_std]
 
@@ -37,6 +65,34 @@ pub const DEFAULT_PORT: u16 = 4878;
 /// ALPN identifier for TLS negotiation
 /// From spec: "ALPN identifier: `GURT/1.0`"
 pub const ALPN_IDENTIFIER: &str = "GURT/1.0";
+
+/// Protocol Limits
+///
+/// From spec: "Protocol Limits" section
+///
+/// Maximum message size
+/// From spec: "Maximum message size: 10 MB"
+pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10 MB
+
+/// Default connection timeout in seconds
+/// From spec: "Default connection timeout: 10 seconds"
+pub const DEFAULT_CONNECTION_TIMEOUT_SECS: u32 = 10;
+
+/// Default request timeout in seconds
+/// From spec: "Default request timeout: 30 seconds"
+pub const DEFAULT_REQUEST_TIMEOUT_SECS: u32 = 30;
+
+/// Default handshake timeout in seconds
+/// From spec: "Default handshake timeout: 5 seconds"
+pub const DEFAULT_HANDSHAKE_TIMEOUT_SECS: u32 = 5;
+
+/// Maximum connection pool size
+/// From spec: "Maximum connection pool size: 10 connections"
+pub const MAX_CONNECTION_POOL_SIZE: usize = 10;
+
+/// Pool idle timeout in seconds
+/// From spec: "Pool idle timeout: 300 seconds"
+pub const POOL_IDLE_TIMEOUT_SECS: u32 = 300;
 
 /// HTTP Methods supported by GURT
 ///
@@ -251,6 +307,11 @@ impl<T: Read + Write> GurtClient<T> {
         self.transport.write_all(b"\r\n").await?;
 
         Ok(())
+    }
+
+    /// Get a response reader for reading server responses
+    pub fn response_reader(&mut self) -> ResponseReader<'_, T> {
+        ResponseReader::new(&mut self.transport)
     }
 
     /// Send a request without a body
