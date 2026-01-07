@@ -1,0 +1,24 @@
+{
+    "name": "@portal-solutions/yo-gurt",
+    "version": "1.0.0",
+    "license": "MPL-2.0",
+    "zshy": {
+        "exports": {
+            ".": "./index.ts"
+        }
+    },
+    "type": "module",
+    "files": [
+        "dist"
+    ],
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.cts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.cts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        }
+    }
+}

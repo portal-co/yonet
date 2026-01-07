@@ -1,6 +1,6 @@
 {
   "name": "@portal-solutions/yo",
-  "workspaces": [],
+  "workspaces": ["packages/yo-gurt"],
   "description": "Obscure network protocol implementation",
   "license": "MPL-2.0",
   "devDependencies": {
