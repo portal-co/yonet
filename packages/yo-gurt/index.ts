@@ -80,134 +80,134 @@ export type WebTransport = {
 // BufferedReader adapted to web ReadableStream API (no Node.js dependency).
 // Parsing behaviors and semantics follow crates/yo-gurt/src/lib.rs ResponseReader logic.
 class BufferedReader {
-  private reader: ReadableStreamDefaultReader<Uint8Array>;
-  private buf: Uint8Array = new Uint8Array(0);
-  private done = false;
+  #reader: ReadableStreamDefaultReader<Uint8Array>;
+  #buf: Uint8Array = new Uint8Array(0);
+  #done = false;
 
   constructor(readable: ReadableStream<Uint8Array>) {
-    this.reader = readable.getReader();
+    this.#reader = readable.getReader();
   }
 
-  private append(chunk: Uint8Array) {
-    const out = new Uint8Array(this.buf.length + chunk.length);
-    out.set(this.buf, 0);
-    out.set(chunk, this.buf.length);
-    this.buf = out;
+  #append(chunk: Uint8Array) {
+    const out = new Uint8Array(this.#buf.length + chunk.length);
+    out.set(this.#buf, 0);
+    out.set(chunk, this.#buf.length);
+    this.#buf = out;
   }
 
-  private indexOfCRLF(): number {
-    const b = this.buf;
+  #indexOfCRLF(): number {
+    const b = this.#buf;
     for (let i = 0; i + 1 < b.length; i++) {
       if (b[i] === 0x0d && b[i + 1] === 0x0a) return i;
     }
     return -1;
   }
 
-  private async pullOne(): Promise<void> {
-    if (this.done) return;
-    const { value, done } = await this.reader.read();
+  async #pullOne(): Promise<void> {
+    if (this.#done) return;
+    const { value, done } = await this.#reader.read();
     if (done) {
-      this.done = true;
+      this.#done = true;
       return;
     }
-    if (value) this.append(value);
+    if (value) this.#append(value);
   }
 
   // Read exactly n bytes or throw if EOF
   async readExact(n: number): Promise<Uint8Array> {
-    while (this.buf.length < n && !this.done) await this.pullOne();
-    if (this.buf.length < n) throw new Error('Unexpected EOF');
-    const out = this.buf.slice(0, n);
-    this.buf = this.buf.slice(n);
+    while (this.#buf.length < n && !this.#done) await this.#pullOne();
+    if (this.#buf.length < n) throw new Error('Unexpected EOF');
+    const out = this.#buf.slice(0, n);
+    this.#buf = this.#buf.slice(n);
     return out;
   }
 
   // Read until CRLF (returns buffer including CRLF)
   async readUntilCRLF(): Promise<Uint8Array> {
-    while (this.indexOfCRLF() < 0 && !this.done) await this.pullOne();
-    const idx = this.indexOfCRLF();
+    while (this.#indexOfCRLF() < 0 && !this.#done) await this.#pullOne();
+    const idx = this.#indexOfCRLF();
     if (idx < 0) throw new Error('Unexpected EOF');
-    const out = this.buf.slice(0, idx + 2);
-    this.buf = this.buf.slice(idx + 2);
+    const out = this.#buf.slice(0, idx + 2);
+    this.#buf = this.#buf.slice(idx + 2);
     return out;
   }
 
   // Read up to n bytes available (may return fewer)
   async readAvailable(n: number): Promise<Uint8Array> {
-    if (this.buf.length === 0 && !this.done) await this.pullOne();
-    const take = Math.min(n, this.buf.length);
-    const out = this.buf.slice(0, take);
-    this.buf = this.buf.slice(take);
+    if (this.#buf.length === 0 && !this.#done) await this.#pullOne();
+    const take = Math.min(n, this.#buf.length);
+    const out = this.#buf.slice(0, take);
+    this.#buf = this.#buf.slice(take);
     return out;
   }
 }
 
 // Writer wrapper for WritableStream
 class StreamWriter {
-  private writer: WritableStreamDefaultWriter<Uint8Array>;
-  private encoder = new TextEncoder();
+  #writer: WritableStreamDefaultWriter<Uint8Array>;
+  #encoder = new TextEncoder();
 
   constructor(writable: WritableStream<Uint8Array>) {
-    this.writer = writable.getWriter();
+    this.#writer = writable.getWriter();
   }
 
   async write(data: Uint8Array | string): Promise<void> {
-    const chunk = typeof data === 'string' ? this.encoder.encode(data) : data;
-    await this.writer.write(chunk);
+    const chunk = typeof data === 'string' ? this.#encoder.encode(data) : data;
+    await this.#writer.write(chunk);
   }
 
   async close(): Promise<void> {
-    await this.writer.close();
+    await this.#writer.close();
   }
 }
 
 // GurtClient using WebTransport. Socket (transport) can be swapped at runtime via setTransport().
 export class GurtClient {
-  private transport: WebTransport;
-  private reader: BufferedReader;
-  private writer: StreamWriter;
+  #transport: WebTransport;
+  #reader: BufferedReader;
+  #writer: StreamWriter;
 
   // Create a new client with an initial web transport (ReadableStream/WritableStream).
   // Citation: request formatting and handshake follow crates/yo-gurt/src/lib.rs
   constructor(transport: WebTransport) {
-    this.transport = transport;
-    this.reader = new BufferedReader(transport.readable);
-    this.writer = new StreamWriter(transport.writable);
+    this.#transport = transport;
+    this.#reader = new BufferedReader(transport.readable);
+    this.#writer = new StreamWriter(transport.writable);
   }
 
   // Replace the underlying transport at runtime so TLS can be applied and swapped in.
   // Mirrors requirement: "socket is changeable on-the-fly (TLS will be added at runtime)".
   setTransport(transport: WebTransport) {
     // Callers are responsible for closing old transport if needed.
-    this.transport = transport;
-    this.reader = new BufferedReader(transport.readable);
-    this.writer = new StreamWriter(transport.writable);
+    this.#transport = transport;
+    this.#reader = new BufferedReader(transport.readable);
+    this.#writer = new StreamWriter(transport.writable);
   }
 
-  private async writeAll(data: string | Uint8Array): Promise<void> {
-    await this.writer.write(data);
+  async #writeAll(data: string | Uint8Array): Promise<void> {
+    await this.#writer.write(data);
   }
 
   // Handshake: every GURT session must begin with a HANDSHAKE request per spec/README.
   async handshake(host: string, userAgent: string): Promise<void> {
     // From crates/yo-gurt/src/lib.rs: handshake writes method line and host/user-agent headers
-    await this.writeAll(`HANDSHAKE / ${GURT_VERSION}\r\n`);
-    await this.writeAll(`host: ${host}\r\n`);
-    await this.writeAll(`user-agent: ${userAgent}\r\n`);
-    await this.writeAll('\r\n'); // header terminator
+    await this.#writeAll(`HANDSHAKE / ${GURT_VERSION}\r\n`);
+    await this.#writeAll(`host: ${host}\r\n`);
+    await this.#writeAll(`user-agent: ${userAgent}\r\n`);
+    await this.#writeAll('\r\n'); // header terminator
   }
 
   responseReader(): ResponseReader {
-    return new ResponseReader(this.reader);
+    return new ResponseReader(this.#reader);
   }
 
   // Send a request without body
   async requestNoBody(method: Method, path: string, host: string, userAgent?: string): Promise<void> {
     const ua = userAgent ?? 'yo-gurt/0.1';
-    await this.writeAll(`${method} ${path} ${GURT_VERSION}\r\n`);
-    await this.writeAll(`host: ${host}\r\n`);
-    await this.writeAll(`user-agent: ${ua}\r\n`);
-    await this.writeAll('\r\n');
+    await this.#writeAll(`${method} ${path} ${GURT_VERSION}\r\n`);
+    await this.#writeAll(`host: ${host}\r\n`);
+    await this.#writeAll(`user-agent: ${ua}\r\n`);
+    await this.#writeAll('\r\n');
   }
 
   // Start a request with a body; returns a writer to stream body data.
@@ -220,23 +220,23 @@ export class GurtClient {
     contentType?: string
   ): Promise<RequestBodyWriter> {
     const ua = userAgent ?? 'yo-gurt/0.1';
-    await this.writeAll(`${method} ${path} ${GURT_VERSION}\r\n`);
-    await this.writeAll(`host: ${host}\r\n`);
-    if (contentType) await this.writeAll(`content-type: ${contentType}\r\n`);
-    await this.writeAll(`content-length: ${contentLength}\r\n`);
-    await this.writeAll(`user-agent: ${ua}\r\n`);
-    await this.writeAll('\r\n');
-    return new RequestBodyWriter(this.writer);
+    await this.#writeAll(`${method} ${path} ${GURT_VERSION}\r\n`);
+    await this.#writeAll(`host: ${host}\r\n`);
+    if (contentType) await this.#writeAll(`content-type: ${contentType}\r\n`);
+    await this.#writeAll(`content-length: ${contentLength}\r\n`);
+    await this.#writeAll(`user-agent: ${ua}\r\n`);
+    await this.#writeAll('\r\n');
+    return new RequestBodyWriter(this.#writer);
   }
 }
 
 export class RequestBodyWriter {
-  private writer: StreamWriter;
+  #writer: StreamWriter;
   constructor(writer: StreamWriter) {
-    this.writer = writer;
+    this.#writer = writer;
   }
   async write(data: Uint8Array | string): Promise<void> {
-    await this.writer.write(data);
+    await this.#writer.write(data);
   }
   async finish(): Promise<void> {
     // no-op: keep connection open; closing may be handled by caller
@@ -248,17 +248,17 @@ export type HeaderResult = { name: string; value: string; totalBytes: number };
 
 // ResponseReader parses status line, headers, and exposes body read helpers.
 export class ResponseReader {
-  private reader: BufferedReader;
-  private decoder = new TextDecoder('utf-8');
+  #reader: BufferedReader;
+  #decoder = new TextDecoder('utf-8');
 
   constructor(reader: BufferedReader) {
-    this.reader = reader;
+    this.#reader = reader;
   }
 
   // Read status line: "GURT/1.0.0 <code> <message>\r\n"
   async readStatusLine(): Promise<StatusLineResult> {
-    const buf = await this.reader.readUntilCRLF();
-    const line = this.decoder.decode(buf.subarray(0, buf.length - 2));
+    const buf = await this.#reader.readUntilCRLF();
+    const line = this.#decoder.decode(buf.subarray(0, buf.length - 2));
     const parts = line.split(' ');
     if (parts[0] !== GURT_VERSION) throw new Error('Invalid protocol');
     const code = parseInt(parts[1], 10);
@@ -268,9 +268,9 @@ export class ResponseReader {
 
   // Read a header line. Return null when encountering the empty line that terminates headers.
   async readHeader(): Promise<HeaderResult | null> {
-    const buf = await this.reader.readUntilCRLF();
+    const buf = await this.#reader.readUntilCRLF();
     if (buf.length === 2) return null; // \r\n only
-    const line = this.decoder.decode(buf.subarray(0, buf.length - 2));
+    const line = this.#decoder.decode(buf.subarray(0, buf.length - 2));
     const idx = line.indexOf(':');
     if (idx < 0) throw new Error('Invalid header');
     const name = line.slice(0, idx).trim().toLowerCase(); // spec: lowercase header names
@@ -280,14 +280,14 @@ export class ResponseReader {
 
   // Read up to buf.length bytes and write into provided Uint8Array, returning bytes read.
   async readBody(target: Uint8Array): Promise<number> {
-    const data = await this.reader.readAvailable(target.length);
+    const data = await this.#reader.readAvailable(target.length);
     target.set(data, 0);
     return data.length;
   }
 
   // Read exact amount into buffer or throw on EOF.
   async readBodyExact(target: Uint8Array): Promise<void> {
-    const data = await this.reader.readExact(target.length);
+    const data = await this.#reader.readExact(target.length);
     target.set(data, 0);
   }
 }
