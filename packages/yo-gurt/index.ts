@@ -25,39 +25,41 @@ export const DEFAULT_HANDSHAKE_TIMEOUT_SECS = 5; // README
 export const MAX_CONNECTION_POOL_SIZE = 10; // README
 export const POOL_IDLE_TIMEOUT_SECS = 300; // README
 
-export enum Method {
+export const Method = {
   // See crates/yo-gurt/src/lib.rs Method enum (lines describing HTTP-like methods)
-  Get = 'GET',
-  Post = 'POST',
-  Put = 'PUT',
-  Delete = 'DELETE',
-  Head = 'HEAD',
-  Options = 'OPTIONS',
-  Patch = 'PATCH',
-  Handshake = 'HANDSHAKE', // Spec: Every GURT session must begin with a HANDSHAKE request
-}
+  Get: 'GET',
+  Post: 'POST',
+  Put: 'PUT',
+  Delete: 'DELETE',
+  Head: 'HEAD',
+  Options: 'OPTIONS',
+  Patch: 'PATCH',
+  Handshake: 'HANDSHAKE', // Spec: Every GURT session must begin with a HANDSHAKE request
+} as const;
+export type Method = (typeof Method)[keyof typeof Method];
 
-export enum StatusCode {
+export const StatusCode = {
   // See crates/yo-gurt/src/lib.rs StatusCode enum (HTTP-compatible status codes)
-  SwitchingProtocols = 101,
-  Ok = 200,
-  Created = 201,
-  Accepted = 202,
-  NoContent = 204,
-  BadRequest = 400,
-  Unauthorized = 401,
-  Forbidden = 403,
-  NotFound = 404,
-  MethodNotAllowed = 405,
-  Timeout = 408,
-  TooLarge = 413,
-  UnsupportedMediaType = 415,
-  InternalServerError = 500,
-  NotImplemented = 501,
-  BadGateway = 502,
-  ServiceUnavailable = 503,
-  GatewayTimeout = 504,
-}
+  SwitchingProtocols: 101,
+  Ok: 200,
+  Created: 201,
+  Accepted: 202,
+  NoContent: 204,
+  BadRequest: 400,
+  Unauthorized: 401,
+  Forbidden: 403,
+  NotFound: 404,
+  MethodNotAllowed: 405,
+  Timeout: 408,
+  TooLarge: 413,
+  UnsupportedMediaType: 415,
+  InternalServerError: 500,
+  NotImplemented: 501,
+  BadGateway: 502,
+  ServiceUnavailable: 503,
+  GatewayTimeout: 504,
+} as const;
+export type StatusCode = (typeof StatusCode)[keyof typeof StatusCode];
 
 function statusReason(code: StatusCode): string {
   // Mirrors StatusCode::reason_phrase from crates/yo-gurt/src/lib.rs
@@ -66,6 +68,38 @@ function statusReason(code: StatusCode): string {
       return 'SWITCHING_PROTOCOLS';
     case StatusCode.Ok:
       return 'OK';
+    case StatusCode.Created:
+      return 'CREATED';
+    case StatusCode.Accepted:
+      return 'ACCEPTED';
+    case StatusCode.NoContent:
+      return 'NO_CONTENT';
+    case StatusCode.BadRequest:
+      return 'BAD_REQUEST';
+    case StatusCode.Unauthorized:
+      return 'UNAUTHORIZED';
+    case StatusCode.Forbidden:
+      return 'FORBIDDEN';
+    case StatusCode.NotFound:
+      return 'NOT_FOUND';
+    case StatusCode.MethodNotAllowed:
+      return 'METHOD_NOT_ALLOWED';
+    case StatusCode.Timeout:
+      return 'TIMEOUT';
+    case StatusCode.TooLarge:
+      return 'TOO_LARGE';
+    case StatusCode.UnsupportedMediaType:
+      return 'UNSUPPORTED_MEDIA_TYPE';
+    case StatusCode.InternalServerError:
+      return 'INTERNAL_SERVER_ERROR';
+    case StatusCode.NotImplemented:
+      return 'NOT_IMPLEMENTED';
+    case StatusCode.BadGateway:
+      return 'BAD_GATEWAY';
+    case StatusCode.ServiceUnavailable:
+      return 'SERVICE_UNAVAILABLE';
+    case StatusCode.GatewayTimeout:
+      return 'GATEWAY_TIMEOUT';
     default:
       return 'UNKNOWN';
   }
