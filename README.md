@@ -1,13 +1,14 @@
-# @portal-solutions/yo
+# @portal-solutions/yonet
 
 ## Description
-Obscure network protocol implementation
+"Obscure network protocol implementation" (`yo-gurt`). A network library or protocol stack.
 
 ## Goals
-- [ ] Add project goals
+- [ ] Implement obscure protocol
+- [ ] Provide networking utilities
 
 ## Progress
-- [ ] Initial setup
+- [ ] Workspace setup
 
 ---
 *AI assisted*
